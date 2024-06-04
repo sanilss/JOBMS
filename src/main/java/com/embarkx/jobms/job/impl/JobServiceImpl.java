@@ -1,6 +1,15 @@
 package com.embarkx.jobms.job.impl;
 
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
 import com.embarkx.jobms.job.Job;
 import com.embarkx.jobms.job.JobRepository;
 import com.embarkx.jobms.job.JobService;
@@ -10,16 +19,9 @@ import com.embarkx.jobms.job.dto.JobDTO;
 import com.embarkx.jobms.job.external.Company;
 import com.embarkx.jobms.job.external.Review;
 import com.embarkx.jobms.job.mapper.JobMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -31,6 +33,8 @@ public class JobServiceImpl implements JobService {
 private CompanyClient companyClient;
 
 private ReviewClient reviewClient;
+
+int attempt=0;
 
 @Autowired
 RestTemplate restTemplate;
@@ -44,13 +48,24 @@ RestTemplate restTemplate;
 
     //private Long nextId=1L;
     @Override
+   // @CircuitBreaker(name="companyBreaker",fallbackMethod = "companyBreakerFallback")
+   // @Retry(name="companyBreaker",fallbackMethod = "companyBreakerFallback")
+    @RateLimiter(name="companyBreaker",fallbackMethod = "companyBreakerFallback")
     public List<JobDTO> findAll(){
+    	System.out.println("Attempt: "+  ++attempt);
         List<Job> jobs=jobRepository.findAll();//getting all the jobs
         //List<JobWithCompanyDTO> jobWithCompanyDTOS=new ArrayList<>();//creating empty ArrayList to store DTO Objects and which we are going to return
 
         return jobs.stream().map(this::covertToDto).collect(Collectors.toList()) ;
     }
 
+    public List<String> companyBreakerFallback(Exception e){
+    	List<String> l=new ArrayList<>();
+    	l.add("Dummy");
+    	return l; 
+    }
+    
+    
     private JobDTO covertToDto(Job job){
 
         //RestTemplate restTemplate=new RestTemplate();
